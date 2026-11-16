@@ -1,5 +1,7 @@
 **Repository name:** `Vcreation`
 
+Backend source and local setup instructions: [BACKEND.md](BACKEND.md).
+
 **GitHub description:**
 > An affordable AI filmmaking studio for turning stories into cinematic videos, with reusable characters, storyboarding, dialogue, and timeline editing.
 
