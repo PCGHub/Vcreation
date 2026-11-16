@@ -1,0 +1,27 @@
+services:
+  - type: web
+    name: vcreation-backend
+    runtime: docker
+    plan: 0.5c-512mb
+    region: oregon
+    numInstances: 1
+
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /
+    autoDeployTrigger: 'off'
+
+    envVars:
+      - key: PORT
+        value: "8000"
+
+      - key: VCREATION_DATABASE
+        value: /data/storage/studio.sqlite3
+
+      - key: VCREATION_ENABLE_PAID_GENERATION
+        value: "false"
+
+    disk:
+      name: vcreation-data
+      mountPath: /data
+      sizeGB: 1
