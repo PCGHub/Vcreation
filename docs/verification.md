@@ -33,3 +33,20 @@ local CPU/electricity/storage and engineering time have not been costed.
 - Public SaaS deployment, payments and multi-user privacy: deliberately not shipped.
 
 This is a reviewable first filmmaking MVP, not parity with OpenArt.
+
+## Sign-in navigation regression
+
+The former gate started a cookie-only GET concurrently with Supabase's initial
+session callback. A late 401 could overwrite the verified-token POST's successful
+result, displaying the sign-in gate even with an authenticated account. The fixed
+gate restores the saved SDK session before verifying it server-side, performs one
+initial check, and ignores responses superseded by a newer auth event. Async work
+runs outside Supabase's auth callback. Login confirms the browser retained the
+HttpOnly cookie before routing to the studio, with a clear cookie error otherwise.
+
+A browser regression using a mocked identity provider reproduced the old failure
+against production. The fix passed stored-session restore, cross-tool navigation,
+reload, a delayed denial after fresh sign-in, and full login → cookie → studio.
+The server session tests still reject foreign/unconfirmed accounts and verify
+HttpOnly/Secure/SameSite cookie behavior. These checks do not use the owner's
+credentials or claim a real owner account sign-in was performed.

@@ -4,21 +4,35 @@ import { useEffect, useState, type ReactNode } from "react";
 import { supabase } from "@/lib/supabase";
 import styles from "@/app/workspace.module.css";
 
+type Access = "loading" | "ready" | "signed-out" | "denied" | "unavailable";
 export function PrivateWorkspace({ children }: { children: ReactNode }) {
-  const [state, setState] = useState<"loading" | "ready" | "signed-out" | "unavailable">("loading");
+  const [state, setState] = useState<Access>("loading");
   useEffect(() => {
     if (process.env.NODE_ENV === "development") return;
     let active = true;
+    let revision = 0;
     async function verify(token?: string) {
+      const current = ++revision;
       try {
-        const response = await fetch("/api/auth/session", token ? { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ access_token: token }) } : { cache: "no-store" });
-        if (active) setState(response.ok ? "ready" : response.status === 401 || response.status === 403 ? "signed-out" : "unavailable");
-      } catch { if (active) setState("unavailable"); }
+        const response = await fetch("/api/auth/session", { cache: "no-store", credentials: "same-origin", ...(token ? { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ access_token: token }) } : {}) });
+        // A slow check made before sign-in must not overwrite a newer verified session.
+        if (active && current === revision) setState(response.ok ? "ready" : response.status === 401 ? "signed-out" : response.status === 403 ? "denied" : "unavailable");
+      } catch { if (active && current === revision) setState("unavailable"); }
     }
-    void verify();
-    const subscription = supabase?.auth.onAuthStateChange((_event, session) => { if (session?.access_token) void verify(session.access_token); else void verify(); });
-    return () => { active = false; subscription?.data.subscription.unsubscribe(); };
+    const subscription = supabase?.auth.onAuthStateChange((event, session) => {
+      if (event === "INITIAL_SESSION") return; // Initialization below handles this once.
+      // Keep async verification outside Supabase's auth-state lock.
+      queueMicrotask(() => { if (active) void verify(session?.access_token); });
+    });
+    const initialRevision = revision;
+    void (async () => {
+      try {
+        const session = supabase ? (await supabase.auth.getSession()).data.session : null;
+        if (active && revision === initialRevision) await verify(session?.access_token);
+      } catch { if (active && revision === initialRevision) await verify(); }
+    })();
+    return () => { active = false; revision++; subscription?.data.subscription.unsubscribe(); };
   }, []);
   if (state === "ready" || process.env.NODE_ENV === "development") return <>{children}</>;
-  return <div className={styles.toolSurface}><main id="workspace" className="workspace-tool workspace-access"><span className="workspace-access-icon">◇</span><h1>{state === "loading" ? "Opening your private workspace…" : state === "unavailable" ? "We couldn't verify your session" : "Your films belong to you."}</h1><p>{state === "loading" ? "Checking your sign-in." : state === "unavailable" ? "Please try signing in again in a moment. Your saved projects haven't been changed." : "Sign in with the workspace owner's verified account to open projects, footage, and render history."}</p>{state !== "loading" && <Link href="/auth" className="workspace-primary">Sign in to workspace</Link>}<small>Owner-only pilot · Customer accounts are not enabled yet.</small></main></div>;
+  return <div className={styles.toolSurface}><main id="workspace" className="workspace-tool workspace-access"><span className="workspace-access-icon">◇</span><h1>{state === "loading" ? "Opening your workspace…" : state === "unavailable" ? "We couldn't verify your session" : state === "denied" ? "This account doesn't have workspace access" : "Sign in to Vcreation"}</h1><p>{state === "loading" ? "Restoring your sign-in and checking access." : state === "unavailable" ? "The sign-in service is temporarily unavailable. Your projects haven't been changed." : state === "denied" ? "This pilot is restricted to its verified owner account. Use the owner's email to sign in." : "Your workspace includes the Film Assistant, Film Studio, footage editor, and render history. Sign in once to use them together."}</p>{state !== "loading" && <Link href="/auth" className="workspace-primary">Sign in to Vcreation</Link>}<small>Private pilot · Your projects stay protected.</small></main></div>;
 }

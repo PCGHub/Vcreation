@@ -32,7 +32,11 @@ export default function AuthPage() {
         await supabase.auth.signOut();
         throw new Error(response.status === 403 ? "This pilot is currently open to its workspace owner only." : "We couldn't open your private workspace. Please try again.");
       }
+      // Confirm that the browser retained the HttpOnly cookie before navigating.
+      const confirmed = await fetch("/api/auth/session", { cache: "no-store", credentials: "same-origin" });
+      if (!confirmed.ok) throw new Error("Your account signed in, but this browser couldn't retain the workspace session. Open vcreation.vercel.app directly and allow cookies for this site, then try again.");
       router.replace("/studio");
+      router.refresh();
     } catch (error) { setError(error instanceof Error ? error.message : "Sign-in is temporarily unavailable."); }
     finally { setBusy(false); }
   }
