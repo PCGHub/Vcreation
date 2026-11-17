@@ -1,0 +1,22 @@
+const fs=require('node:fs');const path=require('node:path');const Module=require('node:module');const assert=require('node:assert/strict');
+const ts=require('../frontend/node_modules/typescript');
+const filename=path.resolve('frontend/app/api/auth/session/route.ts');
+const mod=new Module(filename,module);mod.filename=filename;mod.paths=Module._nodeModulePaths(path.dirname(filename));
+process.env.NEXT_PUBLIC_SUPABASE_URL='https://qa.supabase.co';process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY='sb_publishable_qa';process.env.VCREATION_OWNER_EMAILS='owner@example.com';process.env.NODE_ENV='production';
+mod._compile(ts.transpileModule(fs.readFileSync(filename,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,esModuleInterop:true}}).outputText,filename);
+const {NextRequest}=require('../frontend/node_modules/next/server');const routes=mod.exports;
+let email='owner@example.com', confirmed=true;
+global.fetch=async()=>new Response(JSON.stringify({id:'user-id',aud:'authenticated',role:'authenticated',email,email_confirmed_at:confirmed?'2026-01-01':null,is_anonymous:false,created_at:'2026-01-01',app_metadata:{},user_metadata:{}}),{status:200,headers:{'Content-Type':'application/json'}});
+const req=(method,body,origin='https://vcreation.test')=>new NextRequest('https://vcreation.test/api/auth/session',{method,headers:{Origin:origin,'Content-Type':'application/json'},...(body?{body:JSON.stringify(body)}:{})});
+(async()=>{
+assert.equal((await routes.POST(req('POST',{access_token:'token'},'https://other.test'))).status,403);
+assert.equal((await routes.POST(req('POST',{}))).status,401);
+email='other@example.com';assert.equal((await routes.POST(req('POST',{access_token:'token'}))).status,403);
+email='owner@example.com';confirmed=false;assert.equal((await routes.POST(req('POST',{access_token:'token'}))).status,401);
+confirmed=true;const ok=await routes.POST(req('POST',{access_token:'token'}));assert.equal(ok.status,200);const cookie=ok.headers.get('set-cookie');assert.match(cookie,/HttpOnly/i);assert.match(cookie,/Secure/i);assert.match(cookie,/SameSite=lax/i);
+assert.equal((await routes.GET(req('GET'))).status,401);
+const out=await routes.DELETE(req('DELETE'));assert.equal(out.status,200);assert.match(out.headers.get('set-cookie'),/Max-Age=0/i);
+global.fetch=async()=>new Response(JSON.stringify({message:'Service unavailable'}),{status:503,headers:{'Content-Type':'application/json'}});
+const unavailable=await routes.GET(new NextRequest('https://vcreation.test/api/auth/session',{headers:{cookie:'vcreation_session=token'}}));assert.equal(unavailable.status,503);assert.equal((await unavailable.json()).code,'AUTH_SERVICE_UNAVAILABLE');
+console.log('PASS: session origin checks, missing token, foreign/unconfirmed accounts, verified owner cookie flags, anonymous session and logout');
+})().catch(e=>{console.error(e);process.exitCode=1});

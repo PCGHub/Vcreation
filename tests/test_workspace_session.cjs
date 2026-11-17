@@ -1,0 +1,9 @@
+const fs=require('fs'),vm=require('vm'),ts=require('../frontend/node_modules/typescript'),assert=require('node:assert/strict');let sessionReads=0,session={access_token:'test-token'},responses=[],requests=[];
+const context={exports:{},Response,fetch:async(url,init)=>{requests.push(init?.method||'GET');const r=responses.shift();if(!r)throw Error('Unexpected request');return new Response(JSON.stringify(r.body||{}),{status:r.status,headers:{'content-type':'application/json'}});},require:name=>name==='./supabase'?{supabase:{auth:{getSession:async()=>{sessionReads++;return{data:{session},error:null};}}}}:require(name)};
+vm.runInNewContext(ts.transpileModule(fs.readFileSync('frontend/lib/workspace-session.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,context);
+const restore=context.exports.restoreWorkspaceSession;
+(async()=>{responses=[{status:200}];assert.equal((await restore()).state,'ready');assert.equal(sessionReads,0,'A valid server cookie must not be replaced by stale browser credentials');assert.deepEqual(requests,['GET']);requests=[];
+responses=[{status:401},{status:200},{status:200}];assert.equal((await restore()).state,'ready');assert.deepEqual(requests,['GET','POST','GET']);requests=[];
+responses=[{status:401},{status:200},{status:401}];assert.equal((await restore()).code,'COOKIE_NOT_RETAINED');requests=[];
+responses=[{status:503,body:{code:'AUTH_SERVICE_UNAVAILABLE',detail:'Unavailable'}}];assert.equal((await restore()).state,'unavailable');assert.deepEqual(requests,['GET']);requests=[];
+responses=[{status:401},{status:403,body:{code:'OWNER_MISMATCH'}}];assert.equal((await restore()).code,'OWNER_MISMATCH');session=null;responses=[{status:401,body:{code:'SESSION_MISSING'}}];assert.equal((await restore()).code,'SESSION_MISSING');console.log('PASS authoritative cookie, stale browser token, repair and retention, provider outage, owner mismatch and missing sign-in');})();

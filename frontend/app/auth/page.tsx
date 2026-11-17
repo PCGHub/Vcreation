@@ -17,6 +17,11 @@ export default function AuthPage() {
     fetch("/api/auth/session", { cache: "no-store" }).then(response => { if (active && response.ok) router.replace("/studio"); }).catch(() => {});
     return () => { active = false; };
   }, [router]);
+  async function sessionError(response: Response) {
+    let data: { detail?: string; code?: string } = {};
+    try { data = await response.json(); } catch { /* A hosting/proxy response is not a password error. */ }
+    return new Error(`${data.detail || "Vcreation could not establish your workspace session."} (Support: ${data.code || "SESSION_HTTP_" + response.status})`);
+  }
   async function submit(event: FormEvent) {
     event.preventDefault(); setBusy(true); setError(""); setMessage("");
     try {
@@ -28,13 +33,14 @@ export default function AuthPage() {
       }
       if (!result.data.session) { setMessage("Check your email to confirm your account, then return here to sign in. This pilot only admits its workspace owner."); return; }
       const response = await fetch("/api/auth/session", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ access_token: result.data.session.access_token }) });
-      if (!response.ok) {
-        await supabase.auth.signOut();
-        throw new Error(response.status === 403 ? "This pilot is currently open to its workspace owner only." : "We couldn't open your private workspace. Please try again.");
-      }
+      // A temporary server verification failure must not globally sign the user out.
+      if (!response.ok) throw await sessionError(response);
       // Confirm that the browser retained the HttpOnly cookie before navigating.
       const confirmed = await fetch("/api/auth/session", { cache: "no-store", credentials: "same-origin" });
-      if (!confirmed.ok) throw new Error("Your account signed in, but this browser couldn't retain the workspace session. Open vcreation.vercel.app directly and allow cookies for this site, then try again.");
+      if (!confirmed.ok) {
+        if (confirmed.status === 401) throw new Error("Your account signed in, but the browser session wasn't retained or was rejected. (Support: COOKIE_NOT_RETAINED)");
+        throw await sessionError(confirmed);
+      }
       router.replace("/studio");
       router.refresh();
     } catch (error) { setError(error instanceof Error ? error.message : "Sign-in is temporarily unavailable."); }
