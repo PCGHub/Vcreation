@@ -27,7 +27,7 @@ services:
       - key: VCREATION_OWNER_EMAILS
         sync: false
       - key: VCREATION_ALLOWED_ORIGINS
-        value: https://vcreation.vercel.app
+        value: https://vcreation.vercel.app,https://vcreation-pcgrowthhub-2263s-projects.vercel.app
     disk:
       name: vcreation-data
       mountPath: /data
