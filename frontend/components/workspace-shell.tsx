@@ -17,6 +17,7 @@ export function useWorkspace() {
   return context;
 }
 const tools = [
+  { path: "/write", label: "Writing desk", title: "Writing desk", icon: "edit" },
   { path: "/", label: "Film assistant", title: "Filmmaking assistant", icon: "spark" },
   { path: "/studio", label: "Film studio", title: "Film studio", icon: "film" },
   { path: "/video", label: "Footage editor", title: "Footage editor", icon: "edit" },
@@ -87,7 +88,7 @@ export function WorkspaceShell({ children }: { children: ReactNode }) {
           <div className={styles.sidebarBottom}>
             <div className={styles.tip}><span className={styles.tipIcon}><Icon name="spark" size={17} /></span><strong>Your story. One workspace.</strong><p>Shape your idea, direct each shot, and make the final cut.</p></div>
             <Link href="/auth" className={styles.account} onClick={() => setSidebar(false)}><span className={styles.avatar}>V</span><span><strong>Your workspace</strong><small>Private pilot access</small></span><Icon name="chevron" size={16} /></Link>
-            {pathname !== "/" && pathname !== "/auth" && <button className={styles.signOut} onClick={() => void signOut()}>Sign out</button>}
+            {pathname !== "/" && pathname !== "/auth" && pathname !== "/write" && <button className={styles.signOut} onClick={() => void signOut()}>Sign out</button>}
           </div>
         </aside>
         <div className={styles.mainColumn}>

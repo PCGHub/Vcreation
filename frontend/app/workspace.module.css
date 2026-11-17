@@ -309,3 +309,24 @@
 .planReview button { margin:8px 10px 0 0; }
 .chatMain>.composer { max-width:800px; margin:20px auto 0; }
 @media(max-width:600px) { .chatStarters { grid-template-columns:1fr; } .chatMain { padding:25px 17px; } .messages article { padding:16px; } }
+.writingSection { max-width:900px; margin:25px auto; padding:24px; border:1px solid #ffffff18; border-radius:14px; background:#171b25; }
+.writingSection h2 { font-size:22px; margin:0 0 18px; }
+.writingSection>label,.planFields label { display:grid; gap:7px; font-size:14px; color:#c5cede; }
+.writingSection>textarea { display:block; width:100%; min-height:340px; margin:9px 0 16px; padding:16px; border:1px solid #ffffff26; background:#10141e; color:#eff0f8; border-radius:9px; line-height:1.8; font-family:ui-monospace,SFMono-Regular,Consolas,monospace; resize:vertical; }
+.planFields { border:0; min-width:0; padding:0; display:grid; gap:16px; }
+.planFields>legend { font-size:22px; margin-bottom:18px; color:#f0eef7; }
+.planFields input:not([type=checkbox]),.planFields textarea { width:100%; min-width:0; padding:11px 12px; border:1px solid #ffffff26; border-radius:8px; color:#f0f1fa; background:#10141e; line-height:1.7; }
+.planFields textarea { resize:vertical; }
+.reviewHeading { display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+.reviewHeading h3 { margin:0; flex:1; }
+.reviewHeading span { color:#b3bed0; font-size:13px; }
+.reviewCard { display:grid; gap:14px; padding:18px; border:1px solid #ffffff26; border-radius:10px; min-width:0; }
+.reviewCard>legend { color:#cbb6f3; padding:0 7px; font-size:14px; }
+.reviewActions { display:flex; flex-wrap:wrap; align-items:center; gap:9px; }
+.reviewActions button,.reviewHeading button,.reviewCard>button { border:1px solid #b39bd64d; border-radius:8px; padding:10px 13px; min-height:42px; background:#aa8bd51a; color:#e0d3fa; font-size:14px; cursor:pointer; }
+.reviewActions button:disabled,.reviewHeading button:disabled,.reviewCard>button:disabled { opacity:.45; cursor:default; }
+.castChoices { border:0; padding:0; display:flex; flex-wrap:wrap; gap:12px; min-width:0; }
+.castChoices legend { color:#b2bed1; font-size:13px; margin-bottom:9px; }
+.castChoices label { display:flex; align-items:center; gap:8px; min-height:38px; }
+.castChoices input { accent-color:#b6a0eb; width:18px; height:18px; }
+@media(max-width:600px) { .writingSection { padding:17px; } .reviewCard { padding:13px; } }

@@ -8,7 +8,8 @@
     "build": "npm --prefix frontend run build",
     "lint": "npm --prefix frontend run lint",
     "test": "node scripts/dev.mjs test",
-    "test:auth": "node tests/test_session_route.cjs && node tests/test_workspace_session.cjs"
+    "test:auth": "node tests/test_session_route.cjs && node tests/test_workspace_session.cjs",
+    "test:review": "node tests/test_plan_review.cjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.80.0"
