@@ -1,86 +1,65 @@
 "use client";
-
+import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { useEffect, useRef, useState, useSyncExternalStore, type FormEvent } from "react";
 import styles from "./workspace.module.css";
-import { Icon } from "@/components/workspace-icon";
 import { useDraft } from "@/lib/use-draft";
 import { useWorkspace } from "@/components/workspace-shell";
-import { STORAGE_KEY, subscribeBriefs, readBriefs, parseBriefs, type Brief } from "@/lib/briefs";
-
-const starters = [
-  { title: "A story worth telling", label: "SHORT DRAMA", icon: "film", prompt: "Two estranged siblings meet at their childhood home. A letter changes everything.", tone: "violet", format: "Short film" },
-  { title: "Make your product the hero", label: "PRODUCT FILM", icon: "spark", prompt: "A cinematic product film for a handcrafted coffee brand. Warm morning light, thoughtful details, and a quiet moment.", tone: "cyan", format: "Product film" },
-  { title: "A moment of discovery", label: "VISUAL STORY", icon: "compass", prompt: "A traveler finds a hidden garden in the middle of a busy city. Tell the story through atmosphere and small details.", tone: "amber", format: "Visual story" },
-];
-
+import { api, jsonBody, requestJSON } from "@/lib/api";
+import { filmPlanSchema, type FilmPlan } from "@/lib/film-assistant";
+import { STORAGE_KEY, parseBriefs, readBriefs, type Brief } from "@/lib/briefs";
+type Message = { role: "user" | "assistant"; content: string };
+type Conversation = { messages: Message[]; plan: FilmPlan | null; importId: string; model: string };
+const empty: Conversation = { messages: [], plan: null, importId: "", model: "" };
+const focuses = ["Writing", "Direction", "Production", "Casting", "Music"] as const;
+const starters = ["Develop a two-minute drama about estranged siblings.", "Help me direct a tense dialogue scene on a small budget.", "Build a casting brief and character relationships.", "Plan music cues and sound design for my story."];
 export default function HomePage() {
-  const [draft, setDraft] = useDraft("vcreation.idea-draft.v1", "");
-  const [format, setFormat] = useDraft("vcreation.idea-format.v1", "Short film");
-  const storedBriefs = useSyncExternalStore(subscribeBriefs, readBriefs, () => "[]");
-  const briefs = parseBriefs(storedBriefs);
-  const { selected, setSelected } = useWorkspace();
-  const [error, setError] = useState("");
-  const [deleted, setDeleted] = useState<Brief | null>(null);
-  const input = useRef<HTMLTextAreaElement>(null);
+  const router = useRouter(); const { selected, setSelected } = useWorkspace();
+  const [chat, setChat] = useDraft<Conversation>("vcreation.film-chat.v1", empty);
+  const [draft, setDraft] = useDraft("vcreation.chat-draft.v1", "");
+  const [focus, setFocus] = useDraft<string>("vcreation.chat-focus.v1", "Writing");
+  const [busy, setBusy] = useState(false); const [error, setError] = useState(""); const [notice, setNotice] = useState("");
+  const controller = useRef<AbortController | null>(null); const end = useRef<HTMLDivElement>(null);
+  useEffect(() => () => controller.current?.abort(), []);
+  useEffect(() => { end.current?.scrollIntoView({ behavior: "smooth", block: "nearest" }); }, [chat.messages.length, busy]);
   useEffect(() => {
-    function reset() { setSelected(null); setDraft(""); setError(""); input.current?.focus(); }
-    window.addEventListener("vcreation:new-brief", reset);
-    return () => window.removeEventListener("vcreation:new-brief", reset);
-  }, [setSelected, setDraft]);
-
-  function saveBrief(event: FormEvent) {
-    event.preventDefault();
-    if (!draft.trim()) return;
-    const story = draft.trim();
-    const brief: Brief = { id: crypto.randomUUID(), title: story.split(/[.!?\n]/)[0].slice(0, 60) || "Untitled film", story, format };
-    const next = [brief, ...briefs].slice(0, 20);
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(next)); }
-    catch { setError("Your browser could not save this brief. Copy your idea before leaving this page."); return; }
-    window.dispatchEvent(new Event("vcreation:briefs")); setSelected(brief); setDraft(""); setError("");
+    function reset() { if (busy) return; setChat(empty); setSelected(null); setDraft(""); setError(""); setNotice(""); }
+    window.addEventListener("vcreation:new-brief", reset); return () => window.removeEventListener("vcreation:new-brief", reset);
+  }, [busy, setChat, setDraft, setSelected]);
+  async function generate(mode: "chat" | "plan", event?: FormEvent) {
+    event?.preventDefault(); if (busy || (mode === "chat" && !draft.trim())) return;
+    const messages: Message[] = mode === "chat" ? [...chat.messages, { role: "user", content: draft.trim() }] : chat.messages;
+    if (!messages.length) return;
+    setBusy(true); setError(""); setNotice(""); controller.current = new AbortController();
+    // Preserve the user's text until a complete response succeeds.
+    try {
+      const result = await requestJSON<{ text?: string; plan?: FilmPlan; model: string }>("/api/chat", { method: "POST", signal: controller.current.signal, body: jsonBody({ mode, focus, messages: messages.slice(-24) }) });
+      if (mode === "plan") setChat({ ...chat, plan: filmPlanSchema.parse(result.plan), importId: crypto.randomUUID().replaceAll("-", ""), model: result.model });
+      else { if (!result.text) throw new Error("The assistant returned an empty reply. Please try again."); setChat({ messages: [...messages, { role: "assistant" as const, content: result.text }].slice(-40), plan: null, importId: "", model: result.model }); setDraft(""); setSelected(null); }
+    } catch (e) { if (e instanceof Error && e.name !== "AbortError") setError(e.message); }
+    finally { setBusy(false); controller.current = null; }
   }
-
-  function removeBrief() {
-    if (!selected) return;
-    const next = briefs.filter((brief) => brief.id !== selected.id);
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(next)); }
-    catch { setError("Could not remove the saved brief. Please try again."); return; }
-    setDeleted(selected); window.dispatchEvent(new Event("vcreation:briefs")); setSelected(null); setError("");
+  async function importPlan() {
+    if (!chat.plan || busy) return; setBusy(true); setError("");
+    try { const project = await api<{ id: string }>("/import-plan", { method: "POST", body: jsonBody({ ...chat.plan, project_id: chat.importId }) }); localStorage.setItem("vcreation.active-project.v1", project.id); router.push("/studio"); }
+    catch (e) { setError(e instanceof Error ? e.message : "Couldn't send this plan to the studio."); }
+    finally { setBusy(false); }
   }
-
-  function continueToStudio(event: React.MouseEvent<HTMLAnchorElement>) {
-    if (!selected) return;
-    try { sessionStorage.setItem("vcreation.studio-brief.v1", JSON.stringify(selected)); }
-    catch { event.preventDefault(); setError("Could not transfer your brief. Copy it and open Film studio from the sidebar."); }
+  function saveScript(content: string) {
+    try { const brief: Brief = { id: crypto.randomUUID(), title: content.split(/[\n.!?]/)[0].replace(/^#+\s*/, "").slice(0, 60) || "Film draft", story: content.slice(0, 20000), format: "Short film" }; localStorage.setItem(STORAGE_KEY, JSON.stringify([brief, ...parseBriefs(readBriefs())].slice(0, 20))); window.dispatchEvent(new Event("vcreation:briefs")); setNotice("Saved to Your briefs in this browser."); }
+    catch { setError("Browser storage is unavailable. Copy your script before leaving."); }
   }
-
-  return (
-        <main id="workspace" className={styles.main}>
-          {!selected ? <section className={styles.welcome}>
-            <div className={styles.eyebrow}><span />FROM FIRST IDEA TO FINAL FRAME</div>
-            <div className={styles.heroMark}><Icon name="spark" size={31} /></div>
-            <h1>What story will you <span>tell today?</span></h1>
-            <p className={styles.subtitle}>Plan a film brief, then shape the cast and storyboard.<br />This workspace saves your ideas; it does not generate AI replies or images.</p>
-          </section> : <section className={styles.briefView} aria-live="polite">
-            <div className={styles.briefMeta}><span className={styles.savedBadge}><Icon name="check" size={14} />Saved in this browser</span><span>{selected.format}</span></div>
-            <h1>Your film brief</h1>
-            <div className={styles.storyBubble}>{selected.story}</div>
-            <div className={styles.nextStep}><span className={styles.nextIcon}><Icon name="film" size={24} /></span><div><h2>Your brief is saved.</h2><p>Open your brief in Film studio to define the cast, plan your shots, and review each take before export.</p><Link href="/studio" onClick={continueToStudio} className={styles.primaryLink}>Continue to Film studio<Icon name="chevron" size={17} /></Link></div></div>
-            <div className={styles.briefActions}><button onClick={() => { setDraft(selected.story); setSelected(null); input.current?.focus(); }}>Edit as a new brief</button><button onClick={removeBrief}>Delete brief</button></div>
-          </section>}
-          {deleted && <div className={styles.undo} role="status">Brief deleted.<button onClick={() => { const next = [deleted, ...briefs.filter(brief => brief.id !== deleted.id)].slice(0, 20); try { localStorage.setItem(STORAGE_KEY, JSON.stringify(next)); window.dispatchEvent(new Event("vcreation:briefs")); setSelected(deleted); setDeleted(null); } catch { setError("Couldn't restore the brief. Please check browser storage."); } }}>Undo</button></div>}
-          <section className={styles.composerSection} aria-label="Film brief">
-            <form className={styles.composer} onSubmit={saveBrief}>
-              <label htmlFor="film-idea" className={styles.visuallyHidden}>Describe your film idea</label>
-              <textarea ref={input} id="film-idea" value={draft} onChange={(e) => setDraft(e.target.value)} maxLength={6000} placeholder={selected ? "Plan another film brief…" : "Describe the story, characters, and mood for your film…"} rows={3} />
-              <div className={styles.composerToolbar}><div className={styles.composerTools}><Link href="/video" className={styles.attach} aria-label="Import footage in the editor"><Icon name="plus" size={20} /></Link><span className={styles.toolbarDivider} /><label className={styles.formatLabel}><Icon name="film" size={16} /><span className={styles.visuallyHidden}>Project format</span><select value={format} onChange={(e) => setFormat(e.target.value)}><option>Short film</option><option>Product film</option><option>Visual story</option></select></label></div><button type="submit" className={styles.send} disabled={!draft.trim()} aria-label="Save film brief"><span>Save brief</span><Icon name="arrow" size={18} /></button></div>
-            </form>
-            <p className={styles.composerNote}>Film planning only · Drafts save in this browser · No generation credits used.</p>
-            {error && <p role="alert" className={styles.error}>{error}</p>}
-          </section>
-          {!selected && <section className={styles.inspiration} aria-label="Ideas to get started"><div className={styles.sectionHeading}><h2>A little inspiration</h2><span>MAKE IT YOUR OWN</span></div><div className={styles.starterGrid}>{starters.map((starter) => <button key={starter.label} className={`${styles.starter} ${styles[starter.tone] || ""}`} onClick={() => { setDraft(starter.prompt); setFormat(starter.format); input.current?.focus(); }}><span className={styles.starterTop}><span className={styles.starterIcon}><Icon name={starter.icon} size={22} /></span><span className={styles.cardArrow}><Icon name="diagonal" size={15} /></span></span><span className={styles.starterLabel}>{starter.label}</span><strong>{starter.title}</strong><span className={styles.starterDescription}>{starter.prompt}</span></button>)}</div></section>}
-          <div className={styles.workflow}><span><b>01</b> Shape the story</span><i /><span><b>02</b> Direct every shot</span><i /><span><b>03</b> Make the final cut</span></div>
-          <footer className={styles.footer}><span>YOUR VISION. YOUR DIRECTION.</span><Link href="/studio">Explore the studio<Icon name="chevron" size={13} /></Link></footer>
-        </main>
-  );
+  return <main id="workspace" className={`${styles.main} ${styles.chatMain}`}>
+    <section className={styles.chatIntro}><div className={styles.eyebrow}>YOUR FILMMAKING COLLABORATOR</div><h1>Let’s make your story <span>screen-ready.</span></h1><p>Develop the script, direct each scene, shape the cast, and plan production and music.</p></section>
+    {selected && <section className={styles.savedContext}><h2>{selected.title}</h2><p>{selected.story}</p><button onClick={() => { setDraft(`Develop this film brief:\n${selected.story}`); setSelected(null); }}>Discuss this brief</button></section>}
+    <div className={styles.focusTabs} aria-label="Assistant focus">{focuses.map(item => <button key={item} disabled={busy} aria-pressed={focus === item} onClick={() => setFocus(item)}>{item}</button>)}</div>
+    {!chat.messages.length && <section className={styles.chatStarters} aria-label="Conversation starters">{starters.map(text => <button key={text} onClick={() => setDraft(text)}>{text}</button>)}</section>}
+    <section className={styles.messages} aria-label="Filmmaking conversation">{chat.messages.map((message, i) => <article key={i} className={message.role === "user" ? styles.userMessage : styles.assistantMessage}><h2>{message.role === "user" ? "You" : "Vcreation · Film assistant"}</h2><div>{message.content}</div>{message.role === "assistant" && <button onClick={() => saveScript(message.content)}>Save as a brief</button>}</article>)}<div ref={end} /></section>
+    {chat.messages.some(m => m.role === "assistant") && <div className={styles.chatActions}><button disabled={busy} onClick={() => void generate("plan")}>Prepare studio plan</button><span>Creates a proposed cast and up to 12 shots for your review.</span></div>}
+    {chat.plan && <section className={styles.planReview} aria-label="Review studio plan"><div className={styles.eyebrow}>REVIEW BEFORE PRODUCTION</div><h2>{chat.plan.title}</h2><p>{chat.plan.story}</p><h3>Cast · {chat.plan.characters.length}</h3>{chat.plan.characters.map(actor => <p key={actor.name}><strong>{actor.name}</strong> — {actor.description}<br />Wardrobe: {actor.wardrobe}<br />Voice: {actor.voice_notes}</p>)}<h3>Shot sequence · {chat.plan.shots.reduce((n, shot) => n + shot.duration, 0)} seconds</h3>{chat.plan.shots.map((shot, i) => <article key={i}><h4>{i + 1}. {shot.title} · {shot.duration}s</h4><p>{shot.prompt}</p><p>{shot.dialogue}</p><small>Cast: {shot.character_names.join(", ") || "No cast"}</small></article>)}<p>Sending creates a film with a $0 planning budget. Shots stay unapproved. Review and edit them in Film Studio before any render.</p><button disabled={busy} onClick={() => void importPlan()}>Approve handoff to Film Studio</button><button disabled={busy} onClick={() => setChat({ ...chat, plan: null, importId: "" })}>Discard proposal</button></section>}
+    {error && <p role="alert" className={styles.error}>{error}</p>}{notice && <p role="status" className={styles.chatNotice}>{notice}</p>}
+    {busy && <p role="status" className={styles.chatNotice}>Working on your film… <button onClick={() => controller.current?.abort()}>Stop reply</button></p>}
+    <form className={styles.composer} onSubmit={event => void generate("chat", event)}><label htmlFor="film-chat" className={styles.visuallyHidden}>Message the filmmaking assistant</label><textarea id="film-chat" value={draft} onChange={event => setDraft(event.target.value)} placeholder="Tell me about your film, or ask about writing, directing, casting, production or music…" maxLength={12000} rows={3} /><div className={styles.composerToolbar}><span>{focus} collaborator</span><button className={styles.send} disabled={busy || !draft.trim()} type="submit">Send message ↑</button></div></form>
+    <p className={styles.composerNote}>AI replies use model credits. Chats and drafts save in this browser. Video and music generation are separate; nothing starts automatically.</p><p className={styles.composerNote}>Review AI suggestions. {chat.model && `Model: ${chat.model}. `}<Link href="/auth">Workspace account</Link></p>
+  </main>;
 }

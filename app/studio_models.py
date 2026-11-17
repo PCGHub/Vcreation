@@ -57,3 +57,19 @@ class ExportRequest(Contract):
 class CostReconciliation(Contract):
     actual_usd: float = Field(ge=0, le=10000, allow_inf_nan=False)
     billing_reference: str = Field(min_length=3, max_length=300)
+
+
+class PlanShot(Contract):
+    title: str = Field(min_length=1, max_length=120)
+    prompt: str = Field(min_length=1, max_length=6000)
+    dialogue: str = Field(default="", max_length=3000)
+    duration: int = Field(ge=2, le=15)
+    character_names: list[str] = Field(default_factory=list, max_length=5)
+
+
+class FilmPlanImport(Contract):
+    project_id: str = Field(pattern=r"^[a-f0-9]{32}$")
+    title: str = Field(min_length=1, max_length=120)
+    story: str = Field(min_length=1, max_length=20000)
+    characters: list[CharacterCreate] = Field(max_length=8)
+    shots: list[PlanShot] = Field(min_length=1, max_length=12)

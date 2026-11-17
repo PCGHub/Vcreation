@@ -230,3 +230,27 @@ def render_history():
             "estimated_usd": None, "actual_usd": None,
         })
     return sorted(history, key=lambda item: item["created_at"], reverse=True)[:250]
+
+
+@router.post("/import-plan", status_code=201)
+def import_film_plan(payload: schema.FilmPlanImport):
+    """Atomic, retry-safe owner-approved handoff. Nothing is approved or rendered."""
+    names = [actor.name for actor in payload.characters]
+    if len(set(names)) != len(names):
+        raise ValueError("Each character needs a unique name")
+    if any(actor.image_path for actor in payload.characters):
+        raise ValueError("Add character references in Film studio after importing")
+    if any(name not in names for shot in payload.shots for name in shot.character_names):
+        raise ValueError("Every shot character must belong to this cast")
+    with store.transaction() as db:
+        existing = db.execute("SELECT id FROM projects WHERE id=?", (payload.project_id,)).fetchone()
+        if not existing:
+            store.insert(db, "projects", {"id": payload.project_id, "title": payload.title, "story": payload.story, "budget_micros": 0, "created_at": store.now()})
+            cast = {}
+            for actor in payload.characters:
+                cast[actor.name] = store.identifier()
+                store.insert(db, "characters", {"id": cast[actor.name], "project_id": payload.project_id, **actor.model_dump()})
+            for position, shot in enumerate(payload.shots, 1):
+                values = shot.model_dump(exclude={"character_names"})
+                store.insert(db, "shots", {"id": store.identifier(), "project_id": payload.project_id, "position": position, "character_ids": json.dumps(list(dict.fromkeys(cast[name] for name in shot.character_names))), **values})
+    return store.project_detail(payload.project_id)

@@ -17,7 +17,7 @@ export function useWorkspace() {
   return context;
 }
 const tools = [
-  { path: "/", label: "Plan a film", title: "Film planning", icon: "spark" },
+  { path: "/", label: "Film assistant", title: "Filmmaking assistant", icon: "spark" },
   { path: "/studio", label: "Film studio", title: "Film studio", icon: "film" },
   { path: "/video", label: "Footage editor", title: "Footage editor", icon: "edit" },
   { path: "/jobs", label: "Render history", title: "Render history", icon: "clock" },
@@ -61,7 +61,10 @@ export function WorkspaceShell({ children }: { children: ReactNode }) {
   function newCreation() {
     setSelected(null); setSidebar(false);
     if (pathname === "/") window.dispatchEvent(new Event("vcreation:new-brief"));
-    else router.push("/");
+    else {
+      try { localStorage.setItem("vcreation.film-chat.v1", JSON.stringify({ messages: [], plan: null, importId: "", model: "" })); localStorage.setItem("vcreation.chat-draft.v1", JSON.stringify("")); } catch { /* Existing conversation is retained when storage is unavailable. */ }
+      router.push("/");
+    }
   }
 
   if (!tool) return <>{children}</>;
@@ -75,7 +78,7 @@ export function WorkspaceShell({ children }: { children: ReactNode }) {
             <Link href="/" className={styles.brand} aria-label="Vcreation home" onClick={() => setSidebar(false)}><span className={styles.logo}>v<span>.</span></span>Vcreation</Link>
             <button ref={closeButton} className={`${styles.iconButton} ${styles.mobileOnly}`} aria-label="Close navigation" onClick={() => { setSidebar(false); menuButton.current?.focus(); }}><Icon name="close" /></button>
           </div>
-          <button className={styles.newButton} onClick={newCreation}><Icon name="plus" size={18} />New brief<span><Icon name="diagonal" size={14} /></span></button>
+          <button className={styles.newButton} onClick={newCreation}><Icon name="plus" size={18} />New conversation<span><Icon name="diagonal" size={14} /></span></button>
           <nav className={styles.navigation} aria-label="Creation tools">
             {tools.map((item) => <Link key={item.path} href={item.path} className={pathname === item.path ? styles.activeNav : ""} aria-current={pathname === item.path ? "page" : undefined} onClick={() => setSidebar(false)}><Icon name={item.icon} />{item.label}</Link>)}
           </nav>
@@ -92,7 +95,7 @@ export function WorkspaceShell({ children }: { children: ReactNode }) {
             <div className={styles.headerTitle}><button ref={menuButton} className={`${styles.iconButton} ${styles.mobileOnly}`} aria-label="Open navigation" aria-controls="workspace-navigation" aria-expanded={sidebar} onClick={() => setSidebar(true)}><Icon name="menu" /></button><span>{tool.title}</span><span className={styles.beta}>PILOT</span></div>
             <Link href={pathname === "/video" ? "/studio" : "/video"} className={styles.headerLink} onClick={() => setSidebar(false)}><Icon name={pathname === "/video" ? "film" : "plus"} size={16} />{pathname === "/video" ? "Back to film" : "Import footage"}</Link>
           </header>
-          <div className={pathname === "/" ? "" : styles.toolSurface}>{["/studio", "/video", "/jobs"].includes(pathname) ? <PrivateWorkspace>{children}</PrivateWorkspace> : children}</div>
+          <div className={pathname === "/" ? "" : styles.toolSurface}>{["/", "/studio", "/video", "/jobs"].includes(pathname) ? <PrivateWorkspace>{children}</PrivateWorkspace> : children}</div>
         </div>
       </div>
     </Context.Provider>

@@ -111,6 +111,21 @@ class StudioTests(unittest.TestCase):
         self.assertEqual(rows[take["id"]]["project_title"], "Interview")
         self.assertEqual(rows["parent"]["output_urls"], ["/static/edit/final.mp4"])
 
+    def test_ai_plan_import_is_atomic_retry_safe_and_unapproved(self):
+        payload = {"project_id": "a" * 32, "title": "Chat film", "story": "An original story", "characters": [{"name": "Ada"}], "shots": [{"title": "Arrival", "prompt": "Wide shot", "duration": 5, "character_names": ["Ada"]}]}
+        first = self.post("/import-plan", payload)
+        again = self.post("/import-plan", payload)
+        self.assertEqual(first["id"], again["id"])
+        self.assertEqual(len(again["characters"]), 1)
+        self.assertEqual(len(again["shots"]), 1)
+        self.assertFalse(again["shots"][0]["approved"])
+        self.assertEqual(len(again["jobs"]), 0)
+        self.assertEqual(again["shots"][0]["character_ids"], [again["characters"][0]["id"]])
+        payload["project_id"] = "b" * 32
+        payload["shots"][0]["character_names"] = ["Unknown"]
+        self.post("/import-plan", payload, 409)
+        self.assertEqual(self.client.get("/api/studio/projects/" + "b" * 32).status_code, 404)
+
     def test_requires_approval_and_rejects_unconfigured_paid_generation(self):
         self.post(f"/shots/{self.shot['id']}/quote", {"provider": "preview"}, 409)
         self.approve()

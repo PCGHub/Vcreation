@@ -281,3 +281,31 @@
 @media(max-height:740px) { .tip { display:none; } .sidebarBottom { padding-top:5px; } .brandRow { margin-bottom:16px; } .libraryHeading { margin-top:16px; } }
 @media(max-width:1100px) { .toolSurface :global(.workspace-edit-layout) { grid-template-columns:1fr; } .toolSurface :global(.workspace-edit-controls) { max-width:100%; } }
 @media(max-width:600px) { .toolSurface :global(.workspace-tool) { padding:22px 17px; } .toolSurface :global(.workspace-auth>section) { padding:22px; } .toolSurface :global(.workspace-access) { margin:15px auto; } .workflow { flex-wrap:wrap; font-size:11px; } .workflow i { display:none; } .composerToolbar { gap:8px; } .composerTools { gap:5px; } .formatLabel select { max-width:116px; } .send { padding:10px; } .eyebrow { font-size:10px; } .starterLabel { font-size:10px; } .toolSurface :global(.workspace-project-controls label) { width:100%; max-width:none; flex:auto; } }
+.chatMain { max-width:1100px; margin:auto; padding-top:35px; }
+.chatIntro { max-width:800px; margin:0 auto 25px; }
+.chatIntro h1 { font-size:clamp(28px,3vw,42px); font-weight:500; letter-spacing:-1px; margin:12px 0; line-height:1.2; }
+.chatIntro h1 span { color:#bea5f0; }
+.chatIntro p,.chatNotice { color:#b0bdd0; line-height:1.7; font-size:15px; }
+.focusTabs { display:flex; gap:7px; flex-wrap:wrap; margin:20px auto; max-width:800px; }
+.focusTabs button,.chatActions button,.planReview button,.savedContext button,.messages button,.chatNotice button { border:1px solid #b39bd64d; border-radius:9px; padding:10px 14px; min-height:42px; color:#ddcffb; background:#a88bd51a; font-size:14px; }
+.focusTabs button[aria-pressed=true] { background:#b6a0eb; color:#181321; }
+.chatStarters { display:grid; grid-template-columns:1fr 1fr; gap:12px; max-width:800px; margin:20px auto 30px; }
+.chatStarters button { border:1px solid #ffffff19; border-radius:12px; background:#171b25; color:#c4cddd; padding:18px; text-align:left; line-height:1.6; font-size:15px; }
+.messages,.planReview,.savedContext,.chatActions,.chatNotice { max-width:800px; margin:20px auto; min-width:0; }
+.messages article { margin:20px 0; padding:20px; border-radius:12px; overflow-wrap:anywhere; }
+.messages h2 { font-size:13px; font-weight:600; color:#c6b0f3; margin-bottom:12px; }
+.messages article>div { white-space:pre-wrap; line-height:1.85; font-size:16px; }
+.messages button { margin-top:15px; }
+.userMessage,.savedContext { background:#1e2030; border:1px solid #aa8be726; }
+.assistantMessage { background:#141822; }
+.chatActions { display:flex; align-items:center; gap:15px; flex-wrap:wrap; }
+.chatActions span { font-size:13px; color:#a7b2c6; }
+.planReview,.savedContext { padding:22px; border:1px solid #ae93dc40; border-radius:14px; }
+.planReview h2,.savedContext h2 { font-size:24px; margin:12px 0; }
+.planReview h3 { font-size:18px; margin-top:20px; }
+.planReview p,.savedContext p { font-size:15px; line-height:1.8; white-space:pre-wrap; overflow-wrap:anywhere; }
+.planReview article { border-top:1px solid #ffffff1a; padding:15px 0; }
+.planReview small { color:#b2bdd0; }
+.planReview button { margin:8px 10px 0 0; }
+.chatMain>.composer { max-width:800px; margin:20px auto 0; }
+@media(max-width:600px) { .chatStarters { grid-template-columns:1fr; } .chatMain { padding:25px 17px; } .messages article { padding:16px; } }
