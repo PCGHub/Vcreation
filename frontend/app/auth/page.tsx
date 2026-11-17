@@ -2,6 +2,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import { authErrorMessage } from "@/lib/auth-errors";
 
 export default function AuthPage() {
   const router = useRouter();
@@ -21,7 +22,10 @@ export default function AuthPage() {
     try {
       if (!supabase) throw new Error("Sign-in is being configured. Please try again later.");
       const result = mode === "login" ? await supabase.auth.signInWithPassword({ email: email.trim(), password }) : await supabase.auth.signUp({ email: email.trim(), password });
-      if (result.error) throw new Error(mode === "login" ? "We couldn't sign you in. Check your email, password, and email confirmation." : "We couldn't create this account. Check the details and try again.");
+      if (result.error) {
+        const code = result.error.code || (result.error.status ? `auth_${result.error.status}` : "connection_error");
+        throw new Error(`${authErrorMessage(result.error, mode === "signup")} (Error: ${code})`);
+      }
       if (!result.data.session) { setMessage("Check your email to confirm your account, then return here to sign in. This pilot only admits its workspace owner."); return; }
       const response = await fetch("/api/auth/session", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ access_token: result.data.session.access_token }) });
       if (!response.ok) {
