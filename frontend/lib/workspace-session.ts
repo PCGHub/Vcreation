@@ -17,6 +17,7 @@ export async function restoreWorkspaceSession(): Promise<AccessResult> {
   if (!repaired.ok) return decode(repaired);
   // Verify actual browser persistence, not only a successful Set-Cookie response.
   const retained = await fetch("/api/auth/session", { cache: "no-store", credentials: "same-origin" });
-  if (retained.status === 401) return { state: "unavailable", code: "COOKIE_NOT_RETAINED", detail: "This browser did not retain the Vcreation session cookie. Allow cookies for vcreation.vercel.app and sign in again." };
-  return decode(retained);
+  const result = await decode(retained);
+  if (retained.status === 401 && result.code === "SESSION_MISSING") return { state: "unavailable", code: "COOKIE_NOT_RETAINED", detail: "This browser did not retain the Vcreation session cookie. Allow cookies for vcreation.vercel.app and sign in again." };
+  return result;
 }

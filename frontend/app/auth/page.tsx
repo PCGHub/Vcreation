@@ -38,7 +38,8 @@ export default function AuthPage() {
       // Confirm that the browser retained the HttpOnly cookie before navigating.
       const confirmed = await fetch("/api/auth/session", { cache: "no-store", credentials: "same-origin" });
       if (!confirmed.ok) {
-        if (confirmed.status === 401) throw new Error("Your account signed in, but the browser session wasn't retained or was rejected. (Support: COOKIE_NOT_RETAINED)");
+        const retained = await confirmed.clone().json().catch(() => ({}));
+        if (confirmed.status === 401 && (!retained.code || retained.code === "SESSION_MISSING")) throw new Error("Your account signed in, but the browser session wasn't retained. (Support: COOKIE_NOT_RETAINED)");
         throw await sessionError(confirmed);
       }
       router.replace("/studio");

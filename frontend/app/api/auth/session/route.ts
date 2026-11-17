@@ -27,7 +27,7 @@ async function verify(token?: string): Promise<User | NextResponse> {
     }
     if (!data.user || data.user.is_anonymous) return failure("Please sign in with your owner account.", 401, "USER_UNVERIFIED");
     if (!data.user.email_confirmed_at) return failure("Your email is not confirmed in this Vcreation authentication project. Open the latest confirmation email first.", 401, "EMAIL_UNCONFIRMED");
-    if (!data.user.email || !owners.includes(data.user.email.trim().toLowerCase())) return failure("This verified account is not the configured workspace owner. Use the owner's email.", 403, "OWNER_MISMATCH");
+    if (!data.user.email || !owners.includes(data.user.email.trim().toLowerCase())) return failure(`You are signed in as ${data.user.email || "an account without an email"}, but this account is not the configured workspace owner.`, 403, "OWNER_MISMATCH");
     return data.user;
   } catch { return failure("The account verification service is unavailable. Try again shortly.", 503, "AUTH_SERVICE_UNAVAILABLE"); }
 }

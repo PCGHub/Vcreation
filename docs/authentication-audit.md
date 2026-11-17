@@ -18,3 +18,13 @@ The earlier concurrent response race was real but did not establish the cause of
 Focused Node tests cover authoritative cookies, stale browser tokens, serial repair, actual cookie retention checks, missing sessions, provider outages, owner restrictions, CSRF/origin checks and secure cookie flags. Browser tests use a mocked identity provider and actual browser cookie handling to check full login, tool navigation, reload and clear errors when cookies are unavailable. They do not establish a real owner login.
 
 Session endpoints now emit safe `vcreation-auth` stage codes and return support codes. Logs contain no password, token, cookie, email address or raw provider payload. After a real owner attempt, these logs can distinguish SESSION_CREATED / SESSION_VERIFIED from TOKEN_REJECTED, EMAIL_UNCONFIRMED, OWNER_MISMATCH, COOKIE_NOT_RETAINED and AUTH_SERVICE_UNAVAILABLE. Actual owner success must be confirmed from that real attempt rather than inferred from mocked tests.
+
+## Actual owner-attempt finding
+
+After the audited deployment, a real login reached the production session exchange
+and returned OWNER_MISMATCH (HTTP 403). This occurs after Supabase validates the
+JWT and confirms the email. Therefore the observed attempt passed identity and
+email verification but failed the application owner allowlist. The configured
+allowlist had previously been checked against the intended owner address. The
+registered address must be confirmed by the user before changing authorization;
+no arbitrary authenticated account is promoted automatically.
