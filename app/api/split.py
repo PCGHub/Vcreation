@@ -7,7 +7,7 @@ from pydantic import BaseModel
 
 router = APIRouter()
 
-STATIC_DIR = Path("static")
+STATIC_DIR = Path(__file__).resolve().parents[2] / "static"
 UPLOAD_DIR = STATIC_DIR / "upload"
 CHUNKS_DIR = STATIC_DIR / "chunks"
 
@@ -34,7 +34,9 @@ async def split_video(payload: SplitRequest):
     if not ref.startswith("/static/"):
         raise HTTPException(status_code=400, detail="ref must start with /static/")
 
-    input_path = Path(ref.lstrip("/"))
+    input_path = (STATIC_DIR / ref.removeprefix("/static/")).resolve()
+    if not input_path.is_relative_to(STATIC_DIR.resolve()):
+        raise HTTPException(status_code=400, detail="Video must be inside media storage")
 
     if not input_path.exists():
         raise HTTPException(status_code=404, detail=f"Video not found: {input_path}")

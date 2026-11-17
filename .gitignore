@@ -27,3 +27,6 @@ Thumbs.db
 storage/
 static/*
 !static/branding/
+
+# Local review and verification artifacts
+work/

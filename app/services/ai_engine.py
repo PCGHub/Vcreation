@@ -64,10 +64,8 @@ SUBTITLES_DIR.mkdir(parents=True, exist_ok=True)
 # JOB STORE HELPERS
 # -----------------------------
 def _save_job(job_id: str, data: Dict[str, Any]) -> None:
-    (JOBS_DIR / f"{job_id}.json").write_text(
-        json.dumps(data, indent=2),
-        encoding="utf-8",
-    )
+    from app.services.job_files import write_json_atomic
+    write_json_atomic(JOBS_DIR / f"{job_id}.json", data)
 
 
 def _load_job(job_id: str) -> Dict[str, Any]:
@@ -93,52 +91,6 @@ def _run(cmd: List[str]) -> None:
     proc = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     if proc.returncode != 0:
         raise RuntimeError(proc.stderr[-4000:])
-
-
-# -----------------------------
-# REQUIRED FUNCTIONS (so imports don't break)
-# -----------------------------
-def generate_image(prompt: str, **kwargs):
-    """
-    Placeholder so `from app.services.ai_engine import generate_image` doesn't crash.
-    """
-    raise NotImplementedError("generate_image is not implemented yet.")
-
-
-def start_video_job(prompt: str, engine: str = "replicate+ffmpeg", **kwargs) -> Dict[str, Any]:
-    """
-    Placeholder job creation so transform route stays alive.
-    """
-    job_id = uuid.uuid4().hex
-    job = {
-        "id": job_id,
-        "type": "video",
-        "prompt": prompt,
-        "engine": engine,
-        "status": "queued",
-        "progress": 0,
-        "created_at": int(time.time()),
-        "url": None,
-        "error": None,
-        "meta": kwargs or {},
-    }
-    _save_job(job_id, job)
-    _update_job(job_id, status="running", progress=5)
-    return {"job_id": job_id, "status": "running"}
-
-
-def check_video_job(job_id: str) -> Dict[str, Any]:
-    job = _load_job(job_id)
-    return {
-        "id": job["id"],
-        "type": job.get("type", "video"),
-        "prompt": job.get("prompt"),
-        "status": job.get("status", "unknown"),
-        "url": job.get("url"),
-        "engine": job.get("engine"),
-        "progress": job.get("progress", 0),
-        "error": job.get("error"),
-    }
 
 
 # -----------------------------

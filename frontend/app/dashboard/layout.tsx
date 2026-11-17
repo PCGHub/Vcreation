@@ -7,6 +7,7 @@ import { getSessionUser, supabase } from "@/lib/supabase";
 import DashboardScrollRail from "./scroll-rail";
 
 const navItems = [
+  { href: "/studio", label: "Film Studio" },
   { href: "/dashboard", label: "Overview" },
   { href: "/dashboard/upload", label: "AI Editor" },
   { href: "/dashboard/music/upload", label: "Music AI" },
@@ -23,6 +24,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [userEmail, setUserEmail] = useState("");
 
   useEffect(() => {
+    if (!supabase) return;
     let active = true;
 
     const checkUser = async () => {
@@ -67,11 +69,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     return navItems.find((item) => pathname === item.href)?.label || "Dashboard";
   }, [pathname]);
 
+  if (!supabase) return <main className="mx-auto max-w-xl space-y-4 px-6 py-16"><h1 className="text-3xl">Account dashboard not configured</h1><p>Use the local filmmaking workspace, or configure your own Supabase connection.</p><Link href="/studio" className="text-teal-200">Open Film Studio →</Link></main>;
+
   if (loading) {
     return (
       <div className="clayme-shell flex min-h-screen items-center justify-center px-6">
         <div className="glass-panel rounded-3xl px-8 py-6 text-center">
-          <p className="text-sm uppercase tracking-[0.3em] text-[var(--accent)]">Clayme</p>
+          <p className="text-sm uppercase tracking-[0.3em] text-[var(--accent)]">Vcreation</p>
           <p className="mt-3 text-lg">Loading your workspace...</p>
         </div>
       </div>
@@ -83,7 +87,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <div className="mx-auto grid min-h-screen max-w-[1360px] gap-6 px-4 py-4 lg:grid-cols-[280px_26px_minmax(0,1fr)]">
         <aside className="glass-panel rounded-[28px] p-6 lg:sticky lg:top-4 lg:h-[calc(100vh-2rem)]">
           <div>
-            <p className="text-xs uppercase tracking-[0.35em] text-[var(--accent)]">Clayme AI</p>
+            <p className="text-xs uppercase tracking-[0.35em] text-[var(--accent)]">Vcreation</p>
             <h1 className="section-title mt-3 text-3xl font-semibold">Creator OS</h1>
             <p className="muted mt-3 text-sm leading-6">
               Upload, edit, monitor jobs, and manage outputs from one premium dashboard.
@@ -114,7 +118,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <div className="mt-2 break-all text-sm text-white">{userEmail}</div>
             <button
               onClick={async () => {
-                await supabase.auth.signOut();
+                await supabase?.auth.signOut();
                 router.replace("/auth");
               }}
               className="mt-4 rounded-xl border border-white/15 px-4 py-2 text-sm text-white transition hover:bg-white hover:text-slate-950"

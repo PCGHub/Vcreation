@@ -37,8 +37,19 @@ async def upload_video(file: UploadFile = File(...)):
         save_path = UPLOAD_DIR / filename
 
         # 🔥 SAFE WRITE (no memory overload)
-        with open(save_path, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
+        try:
+            size = 0
+            with open(save_path, "wb") as buffer:
+                while chunk := await file.read(1024 * 1024):
+                    size += len(chunk)
+                    if size > 300 * 1024 * 1024:
+                        raise HTTPException(status_code=413, detail="Upload exceeds 300 MB")
+                    buffer.write(chunk)
+            if size == 0:
+                raise HTTPException(status_code=400, detail="File is empty")
+        except BaseException:
+            save_path.unlink(missing_ok=True)
+            raise
 
         # 🔥 DEBUG LOG (important for troubleshooting)
         print("✅ Uploaded file saved at:", save_path)
@@ -51,6 +62,8 @@ async def upload_video(file: UploadFile = File(...)):
             } else "video",
         }
 
+    except HTTPException:
+        raise
     except Exception as e:
         print("🔥 UPLOAD ERROR:", e)
         raise HTTPException(status_code=500, detail=str(e))

@@ -1,188 +1,36 @@
 "use client";
-
-import { useEffect, useState } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { motion } from "framer-motion";
-import { getSessionUser, supabase } from "@/lib/supabase";
+import { supabase } from "@/lib/supabase";
 
 export default function AuthPage() {
   const router = useRouter();
-
+  const [mode, setMode] = useState<"login" | "signup">("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [mode, setMode] = useState<"login" | "signup">("login");
-  const [loading, setLoading] = useState(false);
+  const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
-
   useEffect(() => {
     let active = true;
-
-    const checkUser = async () => {
-      const user = await getSessionUser();
-      if (active && user) {
-        router.replace("/dashboard");
-      }
-    };
-
-    void checkUser();
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (active && session?.user) {
-        router.replace("/dashboard");
-      }
-    });
-
-    return () => {
-      active = false;
-      subscription.unsubscribe();
-    };
+    fetch("/api/auth/session", { cache: "no-store" }).then(response => { if (active && response.ok) router.replace("/studio"); }).catch(() => {});
+    return () => { active = false; };
   }, [router]);
-
-  const handleSubmit = async () => {
-    const cleanEmail = email.trim();
-    if (!cleanEmail || !password) {
-      setError("Enter your email and password.");
-      return;
-    }
-
-    setLoading(true);
-    setError("");
-    setMessage("");
-
+  async function submit(event: FormEvent) {
+    event.preventDefault(); setBusy(true); setError(""); setMessage("");
     try {
-      if (mode === "signup") {
-        const { error: signupError } = await supabase.auth.signUp({
-          email: cleanEmail,
-          password,
-        });
-
-        if (signupError) {
-          throw signupError;
-        }
-
-        setMessage("Account created. Check your email for the confirmation link.");
-      } else {
-        const { error: loginError } = await supabase.auth.signInWithPassword({
-          email: cleanEmail,
-          password,
-        });
-
-        if (loginError) {
-          throw loginError;
-        }
-
-        router.push("/dashboard");
+      if (!supabase) throw new Error("Sign-in is being configured. Please try again later.");
+      const result = mode === "login" ? await supabase.auth.signInWithPassword({ email: email.trim(), password }) : await supabase.auth.signUp({ email: email.trim(), password });
+      if (result.error) throw new Error(mode === "login" ? "We couldn't sign you in. Check your email, password, and email confirmation." : "We couldn't create this account. Check the details and try again.");
+      if (!result.data.session) { setMessage("Check your email to confirm your account, then return here to sign in. This pilot only admits its workspace owner."); return; }
+      const response = await fetch("/api/auth/session", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ access_token: result.data.session.access_token }) });
+      if (!response.ok) {
+        await supabase.auth.signOut();
+        throw new Error(response.status === 403 ? "This pilot is currently open to its workspace owner only." : "We couldn't open your private workspace. Please try again.");
       }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Authentication failed");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <main className="clayme-shell min-h-screen px-4 py-10">
-      <div className="mx-auto grid min-h-[calc(100vh-5rem)] max-w-6xl gap-8 lg:grid-cols-[1.15fr_0.85fr]">
-        <motion.section
-          initial={{ opacity: 0, y: 24 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="glass-panel rounded-[32px] p-8 lg:p-12"
-        >
-          <p className="mb-4 text-sm uppercase tracking-[0.35em] text-[var(--accent)]">Clayme AI</p>
-          <h1 className="section-title max-w-xl text-5xl font-semibold leading-none sm:text-6xl">
-            Build viral-ready content from raw footage in minutes.
-          </h1>
-          <p className="muted mt-6 max-w-2xl text-lg leading-8">
-            Upload once, trigger AI editing, track progress live, and manage every output from one creator dashboard.
-          </p>
-
-          <div className="mt-10 grid gap-4 sm:grid-cols-3">
-            {[
-              { label: "AI Editing", value: "Upload -> edit -> export" },
-              { label: "Creator Workflow", value: "Dashboard, history, auth" },
-              { label: "Built For SaaS", value: "Ready for credits and billing" },
-            ].map((item) => (
-              <div key={item.label} className="rounded-2xl border border-[var(--line)] bg-black/20 p-4">
-                <div className="text-sm uppercase tracking-[0.2em] text-[var(--muted)]">{item.label}</div>
-                <div className="mt-3 text-lg font-semibold text-white">{item.value}</div>
-              </div>
-            ))}
-          </div>
-        </motion.section>
-
-        <motion.section
-          initial={{ opacity: 0, y: 24 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.08 }}
-          className="glass-panel flex items-center rounded-[32px] p-6 sm:p-8"
-        >
-          <div className="w-full">
-            <div className="mb-6 flex rounded-full border border-[var(--line)] bg-black/20 p-1">
-              <button
-                onClick={() => setMode("login")}
-                className={`flex-1 rounded-full px-4 py-3 text-sm font-semibold transition ${mode === "login" ? "bg-white text-black" : "text-[var(--muted)]"}`}
-              >
-                Login
-              </button>
-              <button
-                onClick={() => setMode("signup")}
-                className={`flex-1 rounded-full px-4 py-3 text-sm font-semibold transition ${mode === "signup" ? "bg-white text-black" : "text-[var(--muted)]"}`}
-              >
-                Sign up
-              </button>
-            </div>
-
-            <h2 className="section-title text-3xl font-semibold">
-              {mode === "login" ? "Welcome back" : "Create your account"}
-            </h2>
-            <p className="muted mt-3 text-sm">
-              {mode === "login"
-                ? "Access your Clayme workspace and continue generating content."
-                : "Start building a creator workflow with AI-powered editing."}
-            </p>
-
-            <div className="mt-8 space-y-4">
-              <input
-                type="email"
-                className="w-full rounded-2xl border border-[var(--line)] bg-black/25 px-4 py-4 outline-none placeholder:text-[var(--muted)]"
-                placeholder="Email address"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-              />
-              <input
-                type="password"
-                className="w-full rounded-2xl border border-[var(--line)] bg-black/25 px-4 py-4 outline-none placeholder:text-[var(--muted)]"
-                placeholder="Password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-              />
-            </div>
-
-            <button
-              onClick={handleSubmit}
-              disabled={loading}
-              className="mt-6 w-full rounded-2xl bg-[var(--accent)] px-4 py-4 font-semibold text-slate-950 transition hover:bg-[var(--accent-strong)] disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {loading ? "Working..." : mode === "login" ? "Enter Dashboard" : "Create Account"}
-            </button>
-
-            {error && (
-              <div className="mt-4 rounded-2xl border border-red-400/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">
-                {error}
-              </div>
-            )}
-
-            {message && (
-              <div className="mt-4 rounded-2xl border border-emerald-400/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">
-                {message}
-              </div>
-            )}
-          </div>
-        </motion.section>
-      </div>
-    </main>
-  );
+      router.replace("/studio");
+    } catch (error) { setError(error instanceof Error ? error.message : "Sign-in is temporarily unavailable."); }
+    finally { setBusy(false); }
+  }
+  return <main id="workspace" className="workspace-tool workspace-auth"><section><p className="workspace-kicker">YOUR PRIVATE CREATIVE SPACE</p><h1>{mode === "login" ? "Welcome back." : "Set up your owner account."}</h1><p>Sign in to keep your projects, footage, and final cuts behind your verified account.</p><div className="workspace-auth-tabs"><button type="button" aria-pressed={mode === "login"} onClick={() => { setMode("login"); setError(""); setMessage(""); }}>Sign in</button><button type="button" aria-pressed={mode === "signup"} onClick={() => { setMode("signup"); setError(""); setMessage(""); }}>Create account</button></div><form onSubmit={submit}><label>Email address<input required type="email" autoComplete="email" value={email} onChange={event => setEmail(event.target.value)} /></label><label>Password<input required minLength={mode === "signup" ? 8 : 1} type="password" autoComplete={mode === "login" ? "current-password" : "new-password"} value={password} onChange={event => setPassword(event.target.value)} /></label><button className="workspace-primary" disabled={busy}>{busy ? "Checking your account…" : mode === "login" ? "Open private workspace" : "Create owner account"}</button></form>{error && <p role="alert" className="workspace-error">{error}</p>}{message && <p role="status">{message}</p>}<small>Owner-only pilot. Creating an account does not automatically grant workspace access.</small></section></main>;
 }

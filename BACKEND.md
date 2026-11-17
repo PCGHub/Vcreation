@@ -1,6 +1,6 @@
 # Vcreation backend
 
-FastAPI backend for video uploads, splitting, editing, transcription, and music workflows. The existing API still uses the Clayme project name internally.
+FastAPI backend for video uploads, splitting, editing, transcription, and music workflows. See [the filmmaking workflow](docs/filmmaking-workflow.md) for the new studio.
 
 ## Local setup (PowerShell)
 
@@ -18,13 +18,13 @@ Run commands from this repository's root directory.
 
 API documentation: http://127.0.0.1:8000/docs
 
-The API allows local frontend origins on port 3000. The current application enables debug mode and is intended for local development; review authentication, CORS, and static file access before exposing it publicly.
+The API allows local frontend origins on port 3000. Debug mode is disabled. This is a local, single-user application; backend authorization and private media storage are required before public hosting. Use one backend process.
 
 ## Optional media features
 
 Install `faster-whisper` for subtitles and transcription. Place a compatible converted base model (including `model.bin`, `config.json`, and tokenizer files) in `static/models/faster-whisper-base/`. The application loads this model locally and does not download it automatically.
 
-Install `demucs` for music stem separation. These features may also require PyTorch and additional model downloads. `replicate` supports Replicate integrations; provider calls require the corresponding environment variables. Some image and video generation functions currently remain placeholders.
+Install `demucs` for music stem separation. These features may also require PyTorch and additional model downloads. Paid video uses the configurable HTTP adapter in the workflow guide; the Replicate SDK is not required. Conflicting generation routes and fake-success placeholders were retired; legacy endpoints now return migration instructions.
 
 The optional Node dependency in `package.json` can be installed with `npm ci` if needed; the FastAPI server runs through Python.
 

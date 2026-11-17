@@ -21,6 +21,7 @@ export default function DashboardHistoryPage() {
 
     const loadProjects = async () => {
       try {
+        if (!supabase) throw new Error("Configure Supabase to use the account dashboard");
         const { data, error: fetchError } = await supabase
           .from("projects")
           .select("id, prompt, type, output_url, created_at")

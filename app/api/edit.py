@@ -35,10 +35,12 @@ class MultiEditRunRequest(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
     prompt: str = ""
-    clip_ref: str
+    clip_ref: Optional[str] = None
+    clips: List[ClipRef] = Field(default_factory=list, max_length=30)
+    num_outputs: int = Field(default=1, ge=1, le=3)
     mode: Optional[str] = "viral"
-    chunk_seconds: Optional[int] = 45
-    max_chunks: Optional[int] = 5
+    chunk_seconds: int = Field(default=45, ge=5, le=300)
+    max_chunks: int = Field(default=5, ge=1, le=10)
 
     @model_validator(mode="before")
     @classmethod
@@ -62,15 +64,6 @@ class MultiEditRunRequest(BaseModel):
                 if isinstance(clip_ref, str) and clip_ref.strip():
                     payload["clip_ref"] = clip_ref
 
-        if not payload.get("clip_ref"):
-            clips = payload.get("clips")
-            if isinstance(clips, list) and clips:
-                first_clip = clips[0]
-                if isinstance(first_clip, dict):
-                    clip_ref = first_clip.get("ref") or first_clip.get("clip_ref")
-                    if isinstance(clip_ref, str) and clip_ref.strip():
-                        payload["clip_ref"] = clip_ref
-
         if payload.get("chunk_seconds") is None and payload.get("chunkSeconds") is not None:
             payload["chunk_seconds"] = payload.get("chunkSeconds")
 
@@ -81,6 +74,14 @@ class MultiEditRunRequest(BaseModel):
             payload["mode"] = "viral"
 
         return payload
+
+    @model_validator(mode="after")
+    def require_source(self):
+        if not self.clips and not self.clip_ref:
+            raise ValueError("Provide clips or a source clip_ref")
+        if len({clip.id for clip in self.clips}) != len(self.clips):
+            raise ValueError("Clip IDs must be unique")
+        return self
 
 def get_paths() -> EditPaths:
     base_dir = Path(__file__).resolve().parents[2]
@@ -113,6 +114,7 @@ def _run_job_background(paths: EditPaths, job_id: str) -> None:
     try:
         run_edit_job(paths, job_id)
     except Exception as e:
+        update_job(paths, job_id, status="failed", stage="failed", error="This edit did not finish. Check the source clips and try again.")
         print(f"BACKGROUND JOB FAILED [{job_id}]: {e}")
 
 
@@ -122,9 +124,38 @@ def _run_multi_job_background(
     req: MultiEditRunRequest,
 ) -> None:
     try:
+        if req.clips:
+            # Multi-clip editing is distinct from extracting highlights from one long source.
+            results = []
+            clip_ids = [clip.id for clip in req.clips]
+            styles = ["clean", "crossfade", "punch-in"]
+            start = styles.index(req.mode) if req.mode in styles else 0
+            for index in range(req.num_outputs):
+                style = styles[(start + index) % 3]
+                plan = build_merge_fast_plan(clip_ids)
+                plan["output"].update({"resolution": "720p", "fps": 24})
+                plan["audio"]["normalize"] = False  # Silent animatics must not enter loudnorm.
+                if style == "crossfade":
+                    plan["transitions"] = {"type": "crossfade", "duration": 0.25}
+                elif style == "punch-in":
+                    plan["camera"] = {"punch_in": True, "strength": 1.04}
+                plan["prompt"] = req.prompt
+                child = create_job(paths, req.prompt, plan, [clip.model_dump() for clip in req.clips])
+                try:
+                    done = run_edit_job(paths, child["id"])
+                except Exception as exc:
+                    update_job(paths, child["id"], status="failed", stage="failed", error=str(exc))
+                    raise
+                results.append({"job_id": done["id"], "output_url": done["output_url"],
+                                "preset": {"clean": "clean cut", "crossfade": "crossfade", "punch-in": "subtle punch-in"}[style]})
+                update_job(paths, job_id, status="running", stage="editing_variants",
+                           progress=int((index+1)/req.num_outputs*95), outputs=results)
+            update_job(paths, job_id, status="succeeded", stage="completed", progress=100,
+                       output_url=results[0]["output_url"], outputs=results)
+            return
         run_multi_edit_job(
             paths=paths,
-            src_ref=req.clip_ref,
+            src_ref=req.clip_ref or "",
             prompt=req.prompt,
             mode=req.mode or "viral",
             chunk_seconds=int(req.chunk_seconds or 45),
@@ -132,7 +163,7 @@ def _run_multi_job_background(
             job_id=job_id,
         )
     except Exception as e:
-        update_job(paths, job_id, status="failed", stage="failed", error=str(e))
+        update_job(paths, job_id, status="failed", stage="failed", error="This edit did not finish. Check the source clips and try again.")
         print(f"BACKGROUND MULTI JOB FAILED [{job_id}]: {e}")
 
 @router.post("/run-multi")
@@ -148,7 +179,7 @@ def run_multi_edit(req: MultiEditRunRequest):
                 "chunk_seconds": int(req.chunk_seconds or 45),
                 "max_chunks": int(req.max_chunks or 5),
             },
-            clips=[{"id": 1, "ref": req.clip_ref}],
+            clips=[clip.model_dump() for clip in req.clips] or [{"id": 1, "ref": req.clip_ref}],
         )
 
         Thread(
@@ -200,7 +231,6 @@ def run_edit(req: EditRunRequest):
                 plan = build_default_plan(req.prompt, clip_ids)
 
         job_prompt = "viral_mode" if _is_viral(req) else req.prompt
-        job_prompt = req.prompt
 
         job = create_job(paths, prompt=job_prompt, plan=plan, clips=clip_dicts)
 

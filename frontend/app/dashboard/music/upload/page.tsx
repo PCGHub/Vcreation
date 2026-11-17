@@ -1,5 +1,7 @@
 "use client";
 
+import { API_BASE } from "@/lib/api";
+
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { addOrUpdateJob } from "@/lib/jobHistory";
@@ -13,7 +15,6 @@ type MusicJobResponse = {
   error?: string;
 };
 
-const API_BASE = "http://127.0.0.1:8000";
 const voiceOptions = [
   { value: "original", label: "Original voice" },
   { value: "afrobeats_star", label: "Afrobeats Star" },

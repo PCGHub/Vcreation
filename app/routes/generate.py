@@ -1,33 +1,14 @@
+"""Migration responses for the former nonfunctional generation endpoints."""
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
 
-router = APIRouter(prefix="/api", tags=["generate"])
-
-class ImageRequest(BaseModel):
-    prompt: str
-
-class VideoRequest(BaseModel):
-    prompt: str
+router = APIRouter(prefix="/api", tags=["generation migration"])
 
 
 @router.post("/generate/image")
-def generate_image(payload: ImageRequest):
-    return {
-        "type": "image",
-        "prompt": payload.prompt,
-        "status": "image generation started"
-    }
+def image_generation():
+    raise HTTPException(410, "Image generation is not configured. Upload approved character images in /studio; image generation needs a separately priced provider integration.")
 
 
 @router.post("/video/generate")
-def generate_video(payload: VideoRequest):
-    prompt = payload.prompt.strip()
-    if not prompt:
-        raise HTTPException(status_code=400, detail="Prompt required")
-
-    return {
-        "type": "video",
-        "prompt": prompt,
-        "status": "video generation started",
-        "engine": "clayme"
-    }
+def video_generation():
+    raise HTTPException(410, "Use /studio: create a project and shot, approve the storyboard, then quote and submit a take. This endpoint no longer reports fake generation success.")

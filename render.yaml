@@ -1,3 +1,5 @@
+# Apply only after the backend source and Dockerfile have been pushed to GitHub.
+# This uses a paid instance because the current backend requires persistent disk.
 services:
   - type: web
     name: vcreation-backend
@@ -5,22 +7,27 @@ services:
     plan: 0.5c-512mb
     region: oregon
     numInstances: 1
-
     dockerfilePath: ./Dockerfile
     dockerContext: .
     healthCheckPath: /
     autoDeployTrigger: 'off'
-
     envVars:
       - key: PORT
         value: "8000"
-
       - key: VCREATION_DATABASE
         value: /data/storage/studio.sqlite3
-
       - key: VCREATION_ENABLE_PAID_GENERATION
         value: "false"
-
+      - key: VCREATION_REQUIRE_AUTH
+        value: "true"
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_PUBLISHABLE_KEY
+        sync: false
+      - key: VCREATION_OWNER_EMAILS
+        sync: false
+      - key: VCREATION_ALLOWED_ORIGINS
+        value: https://vcreation.vercel.app
     disk:
       name: vcreation-data
       mountPath: /data

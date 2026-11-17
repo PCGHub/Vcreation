@@ -1,8 +1,8 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
-const supabaseUrl = "https://cmzsrbmchgepukuxoxsv.supabase.co";
-const supabaseAnonKey =
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNtenNyYm1jaGdlcHVrdXhveHN2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ2MDA2NzEsImV4cCI6MjA5MDE3NjY3MX0.3Qmf4Udtdj_jncmuh3GEeVtkhrNQu7BfdmDBeXKLaiQ";
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
+export const supabaseConfigured = Boolean(supabaseUrl && supabaseAnonKey);
 
 declare global {
   interface Window {
@@ -21,16 +21,17 @@ function createSupabaseBrowserClient() {
 }
 
 export const supabase =
-  typeof window === "undefined"
+  !supabaseConfigured ? null : typeof window === "undefined"
     ? createSupabaseBrowserClient()
     : (window.__claymeSupabase ??= createSupabaseBrowserClient());
 
 export async function getSessionUser() {
+  if (!supabase) return null;
   try {
     const {
-      data: { session },
-    } = await supabase.auth.getSession();
-    return session?.user ?? null;
+      data: { user },
+    } = await supabase.auth.getUser();
+    return user ?? null;
   } catch {
     return null;
   }

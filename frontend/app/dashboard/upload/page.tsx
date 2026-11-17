@@ -1,5 +1,7 @@
 "use client";
 
+import { API_BASE } from "@/lib/api";
+
 import { useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { addOrUpdateJob } from "@/lib/jobHistory";
@@ -18,7 +20,6 @@ type EditStatusResponse = {
 };
 
 export default function UploadPage() {
-  const API_BASE = "http://127.0.0.1:8000";
   const modeOptions = [
     { value: "viral", label: "Viral Edit" },
     { value: "cartoon", label: "Clay / Cartoon" },
@@ -100,6 +101,7 @@ export default function UploadPage() {
   };
 
   const saveProject = async (outputUrl: string) => {
+    if (!supabase) return;
     const {
       data: { session },
     } = await supabase.auth.getSession();
@@ -262,7 +264,7 @@ export default function UploadPage() {
       <h1 className="text-5xl font-bold mb-4 text-center">Create Viral Video</h1>
 
       <p className="text-gray-400 mb-10 text-center max-w-xl">
-        Upload your content and let Clayme transform it into viral clips.
+        Upload your content and let Vcreation transform it into viral clips.
       </p>
 
       <motion.div

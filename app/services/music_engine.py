@@ -50,7 +50,8 @@ def job_path(paths: MusicPaths, job_id: str) -> Path:
 
 
 def save_job(paths: MusicPaths, job: Dict[str, Any]) -> None:
-    job_path(paths, job["id"]).write_text(json.dumps(job, indent=2), encoding="utf-8")
+    from app.services.job_files import write_json_atomic
+    write_json_atomic(job_path(paths, job["id"]), job)
 
 
 def load_job(paths: MusicPaths, job_id: str) -> Dict[str, Any]:

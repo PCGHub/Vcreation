@@ -1,20 +1,10 @@
 import type { Metadata } from "next";
-import { Manrope, Space_Grotesk } from "next/font/google";
 import "./globals.css";
-
-const manrope = Manrope({
-  variable: "--font-manrope",
-  subsets: ["latin"],
-});
-
-const spaceGrotesk = Space_Grotesk({
-  variable: "--font-space-grotesk",
-  subsets: ["latin"],
-});
+import { WorkspaceShell } from "@/components/workspace-shell";
 
 export const metadata: Metadata = {
-  title: "Clayme AI",
-  description: "Turn raw media into viral-ready content with AI.",
+  title: "Vcreation",
+  description: "Plan, preview, generate and assemble short films with reusable cast references and clear cost records.",
 };
 
 export default function RootLayout({
@@ -24,8 +14,8 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`${manrope.variable} ${spaceGrotesk.variable} bg-[var(--bg)] text-[var(--text)] antialiased`}>
-        {children}
+      <body className={"bg-[var(--bg)] text-[var(--text)] antialiased"}>
+        <WorkspaceShell>{children}</WorkspaceShell>
       </body>
     </html>
   );

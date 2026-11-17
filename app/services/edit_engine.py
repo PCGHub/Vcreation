@@ -12,6 +12,7 @@ from urllib.parse import urlparse
 import requests
 
 from app.services.ai_engine import ensure_srt_for_job, generate_hook_from_srt
+from app.services.job_files import write_json_atomic
 
 
 DEFAULT_MAX_DOWNLOAD_MB = 300
@@ -56,7 +57,7 @@ def load_job(paths: EditPaths, job_id: str) -> Dict[str, Any]:
 
 def save_job(paths: EditPaths, job: Dict[str, Any]) -> None:
     p = job_path(paths, job["id"])
-    p.write_text(json.dumps(job, indent=2), encoding="utf-8")
+    write_json_atomic(p, job)
 
 
 def update_job(paths: EditPaths, job_id: str, **updates) -> Dict[str, Any]:
@@ -97,7 +98,9 @@ def is_url(s: str) -> bool:
 
 
 def _run_ffmpeg(cmd: List[str]) -> None:
-    proc = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    # Bound CPU/memory and runtime for the small pilot instance.
+    cmd = cmd[:1] + ["-filter_threads", "2", "-filter_complex_threads", "2"] + cmd[1:-1] + ["-threads", "2"] + cmd[-1:]
+    proc = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=900)
     if proc.returncode != 0:
         raise RuntimeError(f"FFmpeg failed:\n{proc.stderr[-4000:]}")
 
@@ -861,33 +864,6 @@ def build_default_plan(prompt: str, clip_ids: List[int]) -> Dict[str, Any]:
         "version": 1,
     }
 
-def build_merge_fast_plan(clip_ids: List[int]) -> Dict[str, Any]:
-    return {
-        "order": clip_ids,
-        "timeline": [{"clip": cid} for cid in clip_ids],
-        "audio": {"normalize": True},
-        "output": {
-            "resolution": "1080p",
-            "fps": 30,
-            "format": "mp4",
-            "dual_export": False,
-        },
-        "transitions": {"type": "none"},
-        "pacing": {
-            "remove_silence": False,
-        },
-        "camera": {
-            "punch_in": False,
-        },
-        "overlays": [],
-        "subtitles": {
-            "burn": False,
-            "auto": False,
-        },
-        "prompt": "merge_fast",
-        "version": 1,
-    }
-
 def build_viral_plan(clip_ids: List[int], watermark_path: str) -> Dict[str, Any]:
     return {
         "order": clip_ids,
@@ -1215,42 +1191,15 @@ def _apply_punch_in_zoom(
     start: float = 0.0,
     end: Optional[float] = None,
 ) -> None:
-    dur = _ffprobe_duration_seconds(src)
-    if dur <= 0:
-        shutil.copyfile(src, out)
-        return
-
-    z_end = max(1.0, min(float(strength), 1.15))
-    s = max(0.0, float(start))
-    e = float(end) if end is not None else dur
-    e = max(s + 0.01, min(e, dur))
-
-    total_frames = max(1, int((e - s) * 30))
-    zoom_expr = f"1+({z_end}-1)*min(1,on/{total_frames})"
-
-    vf = (
-        f"trim=start={s}:end={e},setpts=PTS-STARTPTS,"
-        f"zoompan=z='{zoom_expr}':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=1:s=1920x1080,"
-        f"fps=30"
-    )
-
-    cmd = [
-        "ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
-        "-i", str(src),
-        "-vf", vf,
-        "-map", "0:v:0",
-        "-map", "0:a?",
-        "-c:v", "libx264",
-        "-pix_fmt", "yuv420p",
-        "-preset", "veryfast",
-        "-crf", "20",
-        "-c:a", "aac",
-        "-ar", "48000",
-        "-ac", "2",
-        "-movflags", "+faststart",
-        str(out),
-    ]
-    _run_ffmpeg(cmd)
+    # A bounded, static center crop gives a subtle punch-in without zoompan loops.
+    probe = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width,height", "-of", "json", str(src)], capture_output=True, text=True, check=True, timeout=30)
+    stream = json.loads(probe.stdout)["streams"][0]
+    width, height = int(stream["width"]), int(stream["height"])
+    factor = max(1.01, min(float(strength), 1.15))
+    crop_width = max(2, int(width / factor) // 2 * 2)
+    crop_height = max(2, int(height / factor) // 2 * 2)
+    vf = f"crop={crop_width}:{crop_height}:(iw-ow)/2:(ih-oh)/2,scale={width}:{height}"
+    _run_ffmpeg(["ffmpeg", "-y", "-hide_banner", "-loglevel", "error", "-i", str(src), "-vf", vf, "-map", "0:v:0", "-map", "0:a?", "-c:v", "libx264", "-pix_fmt", "yuv420p", "-preset", "veryfast", "-crf", "20", "-c:a", "aac", "-ar", "48000", "-ac", "2", "-movflags", "+faststart", str(out)])
 
 
 # -----------------------------
@@ -1864,9 +1813,9 @@ def run_edit_job(paths: EditPaths, job_id: str) -> Dict[str, Any]:
         )
         merged = paced
 
-    # Punch zoom temporarily disabled because it hangs ffmpeg
+    # Apply the bounded static punch-in when requested.
     camera = plan.get("camera", {}) or {}
-    if False:
+    if camera.get("punch_in"):
         print(f"[{job_id}] STEP 5: punch zoom")
         update_job(paths, job_id, progress=60, stage="applying_punch_zoom")
 
